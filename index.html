@@ -298,9 +298,23 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Pull to refresh ── */
+    #ptr-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--tram);
+      transform-origin: left center;
+      transform: scaleX(0);
+      opacity: 0;
+      z-index: 999;
+    }
   </style>
 </head>
 <body>
+
+<div id="ptr-bar"></div>
 
 <header>
   <div id="clock">--:--:--</div>
@@ -531,10 +545,14 @@
       .slice(0, 7);
   }
 
+  function cleanTubeName(name) {
+    return (name || '').replace(/\s*(Underground|DLR|Rail)\s*Station\b/gi, '').trim();
+  }
+
   function renderTubeRows(arrivals) {
     return arrivals.map(t => {
       const mins = Math.round(t.timeToStation / 60);
-      const dest = t.destinationName || t.towards || 'Victoria line';
+      const dest = cleanTubeName(t.destinationName || t.towards || 'Victoria line');
       const platform = (t.platformName || '').replace(/\s*platform\s*/i, 'Plat ').trim();
       return `<div class="dep-row">
         ${timeCell(mins, 'tube')}
@@ -722,6 +740,54 @@
   }
 
   init();
+
+  // Pull-to-refresh (PWA standalone mode disables native pull-to-refresh)
+  (function () {
+    const bar = document.getElementById('ptr-bar');
+    let ptStartY = 0, ptDiff = 0, ptActive = false, ptTriggered = false;
+    const THRESHOLD = 80;
+
+    document.addEventListener('touchstart', e => {
+      if (window.scrollY !== 0) return;
+      ptStartY = e.touches[0].clientY;
+      ptActive = true;
+      ptTriggered = false;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', e => {
+      if (!ptActive) return;
+      ptDiff = e.touches[0].clientY - ptStartY;
+      if (ptDiff <= 0) { ptActive = false; return; }
+      const progress = Math.min(ptDiff / THRESHOLD, 1);
+      bar.style.transform = `scaleX(${progress})`;
+      bar.style.opacity = progress;
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+      if (!ptActive) return;
+      ptActive = false;
+      if (ptDiff >= THRESHOLD && !ptTriggered) {
+        ptTriggered = true;
+        bar.style.transform = 'scaleX(1)';
+        bar.style.opacity = '1';
+        refreshAll();
+        setTimeout(() => {
+          bar.style.transition = 'opacity 0.4s';
+          bar.style.opacity = '0';
+          setTimeout(() => {
+            bar.style.transition = '';
+            bar.style.transform = 'scaleX(0)';
+          }, 400);
+        }, 600);
+      } else {
+        bar.style.transition = 'transform 0.2s, opacity 0.2s';
+        bar.style.transform = 'scaleX(0)';
+        bar.style.opacity = '0';
+        setTimeout(() => { bar.style.transition = ''; }, 200);
+      }
+      ptDiff = 0;
+    });
+  })();
 </script>
 </body>
 </html>
