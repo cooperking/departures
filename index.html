@@ -517,11 +517,12 @@
     return arrivals.map(t => {
       const mins = Math.round(t.timeToStation / 60);
       const dest = destLabel ?? t.destinationName ?? t.towards ?? 'Tramlink';
+      const sub  = t.destinationName || t.towards || 'Tramlink';
       return `<div class="dep-row">
         ${timeCell(mins, 'tram')}
         <div>
           <div class="dest">${dest}</div>
-          <div class="sub-info">Tramlink</div>
+          <div class="sub-info">${sub}</div>
         </div>
         <div></div>
       </div>`;
