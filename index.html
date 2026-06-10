@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Croydon Departures</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Croydon">
+  <meta name="theme-color" content="#0d1117">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --tram: #00c7b7;
+      --train: #f0a500;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --green: #3fb950;
+      --red: #f85149;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      min-height: 100vh;
+      padding: 1.25rem 1rem 2rem;
+    }
+
+    /* ── Header ── */
+
+    header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    #clock {
+      font-size: 2.8rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      margin-bottom: 0.35rem;
+    }
+
+    #updated {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    #updated .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      margin-right: 5px;
+      vertical-align: middle;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ── Tabs ── */
+
+    .tabs {
+      display: flex;
+      max-width: 900px;
+      margin: 0 auto 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.3rem;
+      gap: 0.3rem;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      border-radius: 9px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.6rem 1rem;
+      transition: all 0.15s;
+      letter-spacing: 0.01em;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+
+    .tab-btn.active {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    /* ── Sections ── */
+
+    .section { display: none; }
+    .section.visible { display: block; }
+
+    /* ── Grid ── */
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 680px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Panel ── */
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      flex-shrink: 0;
+    }
+
+    .tram-icon  { background: rgba(0, 199, 183, 0.15); }
+    .train-icon { background: rgba(240, 165, 0, 0.15); }
+
+    .panel-meta { flex: 1; min-width: 0; }
+
+    .panel-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .panel-sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 0.1rem;
+    }
+
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.55rem;
+      transition: all 0.15s;
+    }
+    .refresh-btn:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ── Rows ── */
+
+    .dep-list { padding: 0.25rem 0; min-height: 60px; }
+
+    .dep-row {
+      display: grid;
+      grid-template-columns: 4rem 1fr auto;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .dep-row:last-child { border-bottom: none; }
+
+    .time-cell {
+      text-align: center;
+      border-radius: 8px;
+      padding: 0.45rem 0.3rem;
+    }
+
+    .time-num {
+      font-size: 1.35rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .time-unit {
+      font-size: 0.56rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-top: 0.1rem;
+    }
+
+    .due-pill {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.4rem;
+      border-radius: 5px;
+    }
+
+    .tram-cell      { background: rgba(0, 199, 183, 0.1); }
+    .tram-cell .time-num { color: var(--tram); }
+    .tram-due       { background: rgba(0, 199, 183, 0.15); color: var(--tram); }
+
+    .train-cell     { background: rgba(240, 165, 0, 0.08); }
+    .train-cell .time-num { color: var(--train); }
+    .train-due      { background: rgba(240, 165, 0, 0.15); color: var(--train); }
+
+    .dest {
+      font-size: 0.88rem;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sub-info {
+      font-size: 0.69rem;
+      margin-top: 0.15rem;
+      color: var(--muted);
+    }
+
+    .on-time  { color: var(--green); }
+    .delayed  { color: var(--red); }
+    .cancelled { color: var(--red); opacity: 0.7; }
+
+    .plat { text-align: right; flex-shrink: 0; }
+
+    .plat-badge {
+      display: inline-block;
+      background: rgba(240, 165, 0, 0.1);
+      border: 1px solid rgba(240, 165, 0, 0.25);
+      color: var(--train);
+      border-radius: 6px;
+      padding: 0.22rem 0.5rem;
+      font-size: 0.73rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .plat-tbc { font-size: 0.68rem; color: var(--muted); }
+
+    .state {
+      padding: 2rem 1.25rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+
+    .state.error { color: var(--red); }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--muted);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 0.5rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div id="clock">--:--:--</div>
+  <div id="updated"><span class="dot"></span>Loading…</div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tab-leaving" onclick="switchTab('leaving')">
+    Leaving Home
+  </button>
+  <button class="tab-btn" id="tab-coming" onclick="switchTab('coming')">
+    Coming Home
+  </button>
+</div>
+
+<!-- Leaving Home -->
+<div class="section visible" id="section-leaving">
+  <div class="grid">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="icon tram-icon">🚋</div>
+        <div class="panel-meta">
+          <div class="panel-name">Sandilands → East Croydon</div>
+          <div class="panel-sub">Tramlink · towards Wimbledon</div>
+        </div>
+        <button class="refresh-btn" onclick="loadLeavingTrams(true)">↻</button>
+      </div>
+      <div class="dep-list" id="leaving-trams">
+        <div class="state"><div class="spinner"></div><br>Loading…</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="icon train-icon">🚆</div>
+        <div class="panel-meta">
+          <div class="panel-name">East Croydon → London</div>
+          <div class="panel-sub">National Rail · London services</div>
+        </div>
+        <button class="refresh-btn" onclick="loadLeavingTrains(true)">↻</button>
+      </div>
+      <div class="dep-list" id="leaving-trains">
+        <div class="state"><div class="spinner"></div><br>Loading…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Coming Home -->
+<div class="section" id="section-coming">
+  <div class="grid">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="icon train-icon">🚆</div>
+        <div class="panel-meta">
+          <div class="panel-name">Victoria → East Croydon</div>
+          <div class="panel-sub">National Rail · calling at ECR</div>
+        </div>
+        <button class="refresh-btn" onclick="loadComingTrains(true)">↻</button>
+      </div>
+      <div class="dep-list" id="coming-trains">
+        <div class="state"><div class="spinner"></div><br>Loading…</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="icon tram-icon">🚋</div>
+        <div class="panel-meta">
+          <div class="panel-name">East Croydon → Sandilands</div>
+          <div class="panel-sub">Tramlink · outbound services</div>
+        </div>
+        <button class="refresh-btn" onclick="loadComingTrams(true)">↻</button>
+      </div>
+      <div class="dep-list" id="coming-trams">
+        <div class="state"><div class="spinner"></div><br>Loading…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const TFL    = 'https://api.tfl.gov.uk';
+  const DARWIN = 'https://huxley2.azurewebsites.net';
+
+  // London terminus CRS codes reachable from East Croydon
+  const LONDON_CRS = new Set(['VIC','LBG','STP','BFR','CTK','ZFD','CHX','CST','LPL','MOG']);
+
+  let sandilandsId = '940GZZCRSAN'; // fallback NaPTAN (confirmed working)
+
+  // ── Clock ──────────────────────────────────────────────────────────────────
+
+  function tick() {
+    document.getElementById('clock').textContent =
+      new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  setInterval(tick, 1000);
+  tick();
+
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+
+  function switchTab(tab) {
+    document.getElementById('section-leaving').classList.toggle('visible', tab === 'leaving');
+    document.getElementById('section-coming').classList.toggle('visible', tab === 'coming');
+    document.getElementById('tab-leaving').classList.toggle('active', tab === 'leaving');
+    document.getElementById('tab-coming').classList.toggle('active', tab === 'coming');
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function timeCell(mins, type) {
+    const cls = type === 'tram' ? 'tram' : 'train';
+    if (mins == null || mins <= 0) {
+      return `<div class="time-cell" style="display:flex;align-items:center;justify-content:center">
+        <span class="due-pill ${cls}-due">Due</span>
+      </div>`;
+    }
+    return `<div class="time-cell ${cls}-cell">
+      <div class="time-num">${mins}</div>
+      <div class="time-unit">min</div>
+    </div>`;
+  }
+
+  function minsFromTimeStr(str) {
+    if (!str || str === 'Delayed' || str === 'On time' || str === 'Cancelled') return null;
+    const [h, m] = str.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return null;
+    const dep = new Date();
+    dep.setHours(h, m, 0, 0);
+    const diff = Math.round((dep - Date.now()) / 60000);
+    // Only assume next-day if the time is more than 2 hours in the past.
+    // Without this guard, a train at "14:35" when it's "14:35:30" would roll
+    // over to tomorrow and show ~1439 mins.
+    if (diff < -120) {
+      dep.setDate(dep.getDate() + 1);
+      return Math.round((dep - Date.now()) / 60000);
+    }
+    return diff;
+  }
+
+  function trainStatus(std, etd, cancelled) {
+    if (cancelled) return { mins: minsFromTimeStr(std), label: 'Cancelled', cls: 'delayed cancelled' };
+    if (!etd || etd === 'On time') return { mins: minsFromTimeStr(std), label: `Sched ${std}`, cls: 'on-time' };
+    if (etd === 'Delayed')         return { mins: minsFromTimeStr(std), label: 'Delayed', cls: 'delayed' };
+    return { mins: minsFromTimeStr(etd), label: `Exp ${etd} (sched ${std})`, cls: 'delayed' };
+  }
+
+  function platHtml(platform) {
+    return platform
+      ? `<span class="plat-badge">Plat ${platform}</span>`
+      : `<span class="plat-tbc">TBC</span>`;
+  }
+
+  function loadingHtml()  { return '<div class="state"><div class="spinner"></div><br>Refreshing…</div>'; }
+  function emptyHtml(msg) { return `<div class="state">${msg}</div>`; }
+  function errorHtml(e)   { return `<div class="state error">Could not load data<br><small>${e.message}</small></div>`; }
+
+  // ── Stop ID lookup ─────────────────────────────────────────────────────────
+
+  async function lookupTramStops() {
+    try {
+      const r = await fetch(`${TFL}/StopPoint/Search/Sandilands`);
+      if (!r.ok) return;
+      const d = await r.json();
+      const match = d.matches?.find(m => m.id?.startsWith('940'));
+      if (match) sandilandsId = match.id;
+    } catch { /* retain fallback */ }
+  }
+
+  // ── Tram direction filters ─────────────────────────────────────────────────
+
+  // Returns true for trams heading towards New Addington / Elmers End / Beckenham
+  // (the Coming Home direction: Wimbledon → East Croydon → Sandilands → outskirts).
+  // TfL Tramlink uses 'inbound' for this direction and 'outbound' for towards Wimbledon
+  // — the opposite of what you might expect. The name fallback covers cases where
+  // the direction field is absent.
+  function isTowardsOutskirts(arrival) {
+    if (arrival.direction === 'inbound')  return true;
+    if (arrival.direction === 'outbound') return false;
+    const t = (arrival.towards || arrival.destinationName || '').toLowerCase();
+    return t.includes('new addington') || t.includes('elmers end')
+        || t.includes('beckenham')     || t.includes('addiscombe')
+        || t.includes('lloyd park')    || t.includes('arena');
+  }
+
+  // ── Train direction filters ────────────────────────────────────────────────
+
+  function isLondonBound(svc) {
+    return svc.destination?.some(d => {
+      const crs  = (d.crs || '').toUpperCase();
+      const name = (d.locationName || '').toLowerCase();
+      return LONDON_CRS.has(crs) || name.includes('london') || name.includes('victoria')
+          || name.includes('st pancras') || name.includes('blackfriars')
+          || name.includes('cannon street') || name.includes('charing cross');
+    }) ?? false;
+  }
+
+  function callsAtECR(svc) {
+    const points = svc.subsequentCallingPoints?.[0]?.callingPoint ?? [];
+    return points.some(p => p.crs === 'ECR');
+  }
+
+  function getECRPoint(svc) {
+    return (svc.subsequentCallingPoints?.[0]?.callingPoint ?? []).find(p => p.crs === 'ECR');
+  }
+
+  // ── Tram fetchers ──────────────────────────────────────────────────────────
+
+  async function fetchTramArrivals(stopId, filterFn) {
+    const r = await fetch(`${TFL}/StopPoint/${stopId}/Arrivals`);
+    if (!r.ok) throw new Error(`TfL ${r.status}`);
+    const all = await r.json();
+    return all
+      .filter(filterFn)
+      .sort((a, b) => a.timeToStation - b.timeToStation)
+      .slice(0, 7);
+  }
+
+  function renderTramRows(arrivals, destLabel) {
+    return arrivals.map(t => {
+      const mins = Math.round(t.timeToStation / 60);
+      const dest = destLabel ?? t.destinationName ?? t.towards ?? 'Tramlink';
+      return `<div class="dep-row">
+        ${timeCell(mins, 'tram')}
+        <div>
+          <div class="dest">${dest}</div>
+          <div class="sub-info">Tramlink</div>
+        </div>
+        <div></div>
+      </div>`;
+    }).join('');
+  }
+
+  async function loadLeavingTrams(manual = false) {
+    const el = document.getElementById('leaving-trams');
+    if (manual) el.innerHTML = loadingHtml();
+    try {
+      const rows = await fetchTramArrivals(sandilandsId, t => !isTowardsOutskirts(t));
+      el.innerHTML = rows.length ? renderTramRows(rows, 'towards East Croydon') : emptyHtml('No trams towards East Croydon');
+    } catch (e) { el.innerHTML = errorHtml(e); }
+  }
+
+  async function loadComingTrams(manual = false) {
+    const el = document.getElementById('coming-trams');
+    if (manual) el.innerHTML = loadingHtml();
+    try {
+      const rows = await fetchTramArrivals(sandilandsId, isTowardsOutskirts);
+      el.innerHTML = rows.length ? renderTramRows(rows) : emptyHtml('No outbound trams due');
+    } catch (e) { el.innerHTML = errorHtml(e); }
+  }
+
+  // ── Train fetchers ─────────────────────────────────────────────────────────
+
+  function renderTrainRow(svc, subInfo) {
+    const dest      = svc.destination?.[0]?.locationName || 'Unknown';
+    const cancelled = svc.isCancelled;
+    const { mins, label, cls } = trainStatus(svc.std, svc.etd, cancelled);
+
+    return `<div class="dep-row">
+      ${timeCell(mins, 'train')}
+      <div style="min-width:0">
+        <div class="dest ${cancelled ? 'cancelled' : ''}">${dest}</div>
+        <div class="sub-info">
+          <span class="${cls}">${label}</span>
+          ${svc.operatorName ? ` · ${svc.operatorName}` : ''}
+          ${subInfo ? ` · ${subInfo}` : ''}
+        </div>
+      </div>
+      <div class="plat">${platHtml(svc.platform)}</div>
+    </div>`;
+  }
+
+  async function loadLeavingTrains(manual = false) {
+    const el = document.getElementById('leaving-trains');
+    if (manual) el.innerHTML = loadingHtml();
+    try {
+      const r = await fetch(`${DARWIN}/departures/ECR/15?expand=true`);
+      if (!r.ok) throw new Error(`Darwin ${r.status}`);
+      const data = await r.json();
+      const svcs = (data.trainServices || []).filter(isLondonBound).slice(0, 8);
+      el.innerHTML = svcs.length
+        ? svcs.map(s => renderTrainRow(s, null)).join('')
+        : emptyHtml('No London-bound trains currently due');
+    } catch (e) { el.innerHTML = errorHtml(e); }
+  }
+
+  async function loadComingTrains(manual = false) {
+    const el = document.getElementById('coming-trains');
+    if (manual) el.innerHTML = loadingHtml();
+    try {
+      const r = await fetch(`${DARWIN}/departures/VIC/20?expand=true`);
+      if (!r.ok) throw new Error(`Darwin ${r.status}`);
+      const data = await r.json();
+      const svcs = (data.trainServices || []).filter(callsAtECR).slice(0, 8);
+
+      if (!svcs.length) {
+        el.innerHTML = emptyHtml('No trains calling at East Croydon');
+        return;
+      }
+
+      el.innerHTML = svcs.map(s => {
+        const ecrPoint = getECRPoint(s);
+        let arrInfo = null;
+        if (ecrPoint) {
+          const t = ecrPoint.et && ecrPoint.et !== 'On time' ? ecrPoint.et : ecrPoint.st;
+          if (t) arrInfo = `arr ECR ${t}`;
+        }
+        return renderTrainRow(s, arrInfo);
+      }).join('');
+
+    } catch (e) { el.innerHTML = errorHtml(e); }
+  }
+
+  // ── Refresh ────────────────────────────────────────────────────────────────
+
+  function refreshAll() {
+    loadLeavingTrams();
+    loadLeavingTrains();
+    loadComingTrains();
+    loadComingTrams();
+    document.getElementById('updated').innerHTML =
+      `<span class="dot"></span>Updated ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+  }
+
+  async function init() {
+    await lookupTramStops();
+    refreshAll();
+    setInterval(refreshAll, 30_000);
+  }
+
+  init();
+</script>
+</body>
+</html>
