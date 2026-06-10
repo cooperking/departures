@@ -2,7 +2,7 @@
   "name": "Croydon Departures",
   "short_name": "Croydon",
   "description": "Live tram and train departures for Sandilands and East Croydon",
-  "start_url": "/",
+  "start_url": "/departures/",
   "display": "standalone",
   "background_color": "#0d1117",
   "theme_color": "#0d1117",
