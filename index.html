@@ -315,7 +315,7 @@
         <div class="icon tram-icon">🚋</div>
         <div class="panel-meta">
           <div class="panel-name">Sandilands → East Croydon</div>
-          <div class="panel-sub">Tramlink · towards Wimbledon</div>
+          <div class="panel-sub">Tramlink · towards East Croydon</div>
         </div>
         <button class="refresh-btn" onclick="loadLeavingTrams(true)">↻</button>
       </div>
@@ -364,7 +364,7 @@
         <div class="icon tram-icon">🚋</div>
         <div class="panel-meta">
           <div class="panel-name">East Croydon → Sandilands</div>
-          <div class="panel-sub">Tramlink · outbound services</div>
+          <div class="panel-sub">Tramlink · towards Sandilands</div>
         </div>
         <button class="refresh-btn" onclick="loadComingTrams(true)">↻</button>
       </div>
@@ -542,7 +542,7 @@
     if (manual) el.innerHTML = loadingHtml();
     try {
       const rows = await fetchTramArrivals(sandilandsId, isTowardsOutskirts);
-      el.innerHTML = rows.length ? renderTramRows(rows) : emptyHtml('No outbound trams due');
+      el.innerHTML = rows.length ? renderTramRows(rows, 'towards Sandilands') : emptyHtml('No outbound trams due');
     } catch (e) { el.innerHTML = errorHtml(e); }
   }
 
@@ -620,6 +620,7 @@
   }
 
   async function init() {
+    if (new Date().getHours() >= 15) switchTab('coming');
     await lookupTramStops();
     refreshAll();
     setInterval(refreshAll, 30_000);
