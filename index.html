@@ -17,6 +17,7 @@
       --border: #30363d;
       --tram: #00c7b7;
       --train: #f0a500;
+      --tube: #009fe0;
       --text: #e6edf3;
       --muted: #7d8590;
       --green: #3fb950;
@@ -74,7 +75,7 @@
 
     .tabs {
       display: flex;
-      max-width: 900px;
+      max-width: 1300px;
       margin: 0 auto 1.25rem;
       background: var(--surface);
       border: 1px solid var(--border);
@@ -113,13 +114,17 @@
 
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 1.25rem;
-      max-width: 900px;
+      max-width: 1300px;
       margin: 0 auto;
     }
 
-    @media (max-width: 680px) {
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 600px) {
       .grid { grid-template-columns: 1fr; }
     }
 
@@ -153,6 +158,7 @@
 
     .tram-icon  { background: rgba(0, 199, 183, 0.15); }
     .train-icon { background: rgba(240, 165, 0, 0.15); }
+    .tube-icon  { background: rgba(0, 159, 224, 0.15); }
 
     .panel-meta { flex: 1; min-width: 0; }
 
@@ -231,6 +237,10 @@
     .train-cell     { background: rgba(240, 165, 0, 0.08); }
     .train-cell .time-num { color: var(--train); }
     .train-due      { background: rgba(240, 165, 0, 0.15); color: var(--train); }
+
+    .tube-cell      { background: rgba(0, 159, 224, 0.08); }
+    .tube-cell .time-num { color: var(--tube); }
+    .tube-due       { background: rgba(0, 159, 224, 0.15); color: var(--tube); }
 
     .dest {
       font-size: 0.88rem;
@@ -328,12 +338,26 @@
       <div class="panel-head">
         <div class="icon train-icon">🚆</div>
         <div class="panel-meta">
-          <div class="panel-name">East Croydon → London</div>
-          <div class="panel-sub">National Rail · London services</div>
+          <div class="panel-name">East Croydon → Victoria</div>
+          <div class="panel-sub">National Rail · to Victoria</div>
         </div>
         <button class="refresh-btn" onclick="loadLeavingTrains(true)">↻</button>
       </div>
       <div class="dep-list" id="leaving-trains">
+        <div class="state"><div class="spinner"></div><br>Loading…</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="icon tube-icon">🚇</div>
+        <div class="panel-meta">
+          <div class="panel-name">Victoria → Oxford Circus</div>
+          <div class="panel-sub">Victoria line · northbound</div>
+        </div>
+        <button class="refresh-btn" onclick="loadLeavingTube(true)">↻</button>
+      </div>
+      <div class="dep-list" id="leaving-tube">
         <div class="state"><div class="spinner"></div><br>Loading…</div>
       </div>
     </div>
@@ -344,6 +368,20 @@
 <!-- Coming Home -->
 <div class="section" id="section-coming">
   <div class="grid">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="icon tube-icon">🚇</div>
+        <div class="panel-meta">
+          <div class="panel-name">Oxford Circus → Victoria</div>
+          <div class="panel-sub">Victoria line · southbound</div>
+        </div>
+        <button class="refresh-btn" onclick="loadComingTube(true)">↻</button>
+      </div>
+      <div class="dep-list" id="coming-tube">
+        <div class="state"><div class="spinner"></div><br>Loading…</div>
+      </div>
+    </div>
 
     <div class="panel">
       <div class="panel-head">
@@ -380,8 +418,8 @@
   const TFL    = 'https://api.tfl.gov.uk';
   const DARWIN = 'https://huxley2.azurewebsites.net';
 
-  // London terminus CRS codes reachable from East Croydon
-  const LONDON_CRS = new Set(['VIC','LBG','STP','BFR','CTK','ZFD','CHX','CST','LPL','MOG']);
+  const VICTORIA_TUBE_ID    = '940GZZLUVIC';
+  const OXFORD_CIRCUS_ID    = '940GZZLUOXC';
 
   let sandilandsId = '940GZZCRSAN'; // fallback NaPTAN (confirmed working)
 
@@ -406,7 +444,7 @@
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   function timeCell(mins, type) {
-    const cls = type === 'tram' ? 'tram' : 'train';
+    const cls = type === 'tram' ? 'tram' : type === 'tube' ? 'tube' : 'train';
     if (mins == null || mins <= 0) {
       return `<div class="time-cell" style="display:flex;align-items:center;justify-content:center">
         <span class="due-pill ${cls}-due">Due</span>
@@ -478,6 +516,59 @@
     return t.includes('new addington') || t.includes('elmers end')
         || t.includes('beckenham')     || t.includes('addiscombe')
         || t.includes('lloyd park')    || t.includes('arena');
+  }
+
+  // ── Tube ───────────────────────────────────────────────────────────────────
+
+  async function fetchTubeArrivals(stopId, filterFn) {
+    const r = await fetch(`${TFL}/StopPoint/${stopId}/Arrivals`);
+    if (!r.ok) throw new Error(`TfL ${r.status}`);
+    const all = await r.json();
+    return all
+      .filter(t => t.lineId === 'victoria')
+      .filter(filterFn)
+      .sort((a, b) => a.timeToStation - b.timeToStation)
+      .slice(0, 7);
+  }
+
+  function renderTubeRows(arrivals) {
+    return arrivals.map(t => {
+      const mins = Math.round(t.timeToStation / 60);
+      const dest = t.destinationName || t.towards || 'Victoria line';
+      const platform = (t.platformName || '').replace(/\s*platform\s*/i, 'Plat ').trim();
+      return `<div class="dep-row">
+        ${timeCell(mins, 'tube')}
+        <div>
+          <div class="dest">${dest}</div>
+          <div class="sub-info">${platform || 'Victoria line'}</div>
+        </div>
+        <div></div>
+      </div>`;
+    }).join('');
+  }
+
+  async function loadLeavingTube(manual = false) {
+    const el = document.getElementById('leaving-tube');
+    if (manual) el.innerHTML = loadingHtml();
+    try {
+      const rows = await fetchTubeArrivals(VICTORIA_TUBE_ID, t => {
+        const towards = (t.towards || t.destinationName || '').toLowerCase();
+        return !towards.includes('brixton');
+      });
+      el.innerHTML = rows.length ? renderTubeRows(rows) : emptyHtml('No northbound trains due');
+    } catch (e) { el.innerHTML = errorHtml(e); }
+  }
+
+  async function loadComingTube(manual = false) {
+    const el = document.getElementById('coming-tube');
+    if (manual) el.innerHTML = loadingHtml();
+    try {
+      const rows = await fetchTubeArrivals(OXFORD_CIRCUS_ID, t => {
+        const towards = (t.towards || t.destinationName || '').toLowerCase();
+        return towards.includes('brixton') || towards.includes('victoria');
+      });
+      el.innerHTML = rows.length ? renderTubeRows(rows) : emptyHtml('No southbound trains due');
+    } catch (e) { el.innerHTML = errorHtml(e); }
   }
 
   // ── Train direction filters ────────────────────────────────────────────────
@@ -575,10 +666,11 @@
       const r = await fetch(`${DARWIN}/departures/ECR/15?expand=true`);
       if (!r.ok) throw new Error(`Darwin ${r.status}`);
       const data = await r.json();
-      const svcs = (data.trainServices || []).filter(isLondonBound).slice(0, 8);
+      const isToVictoria = s => s.destination?.some(d => d.crs === 'VIC') ?? false;
+      const svcs = (data.trainServices || []).filter(isToVictoria).slice(0, 8);
       el.innerHTML = svcs.length
         ? svcs.map(s => renderTrainRow(s, null)).join('')
-        : emptyHtml('No London-bound trains currently due');
+        : emptyHtml('No trains to Victoria currently due');
     } catch (e) { el.innerHTML = errorHtml(e); }
   }
 
@@ -614,6 +706,8 @@
   function refreshAll() {
     loadLeavingTrams();
     loadLeavingTrains();
+    loadLeavingTube();
+    loadComingTube();
     loadComingTrains();
     loadComingTrams();
     document.getElementById('updated').innerHTML =
