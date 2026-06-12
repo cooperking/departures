@@ -542,7 +542,7 @@
       .filter(t => t.lineId === 'victoria')
       .filter(filterFn)
       .sort((a, b) => a.timeToStation - b.timeToStation)
-      .slice(0, 7);
+      .slice(0, 5);
   }
 
   function cleanTubeName(name) {
@@ -619,7 +619,7 @@
     return all
       .filter(filterFn)
       .sort((a, b) => a.timeToStation - b.timeToStation)
-      .slice(0, 7);
+      .slice(0, 5);
   }
 
   function renderTramRows(arrivals, destLabel) {
@@ -685,7 +685,7 @@
       if (!r.ok) throw new Error(`Darwin ${r.status}`);
       const data = await r.json();
       const isToVictoria = s => s.destination?.some(d => d.crs === 'VIC') ?? false;
-      const svcs = (data.trainServices || []).filter(isToVictoria).slice(0, 8);
+      const svcs = (data.trainServices || []).filter(isToVictoria).slice(0, 5);
       el.innerHTML = svcs.length
         ? svcs.map(s => renderTrainRow(s, null)).join('')
         : emptyHtml('No trains to Victoria currently due');
@@ -699,7 +699,7 @@
       const r = await fetch(`${DARWIN}/departures/VIC/20?expand=true`);
       if (!r.ok) throw new Error(`Darwin ${r.status}`);
       const data = await r.json();
-      const svcs = (data.trainServices || []).filter(callsAtECR).slice(0, 8);
+      const svcs = (data.trainServices || []).filter(callsAtECR).slice(0, 5);
 
       if (!svcs.length) {
         el.innerHTML = emptyHtml('No trains calling at East Croydon');
