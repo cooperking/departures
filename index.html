@@ -624,7 +624,7 @@
 
   function renderTramRows(arrivals, destLabel) {
     return arrivals.map(t => {
-      const mins = Math.round(t.timeToStation / 60);
+      const mins = Math.floor(t.timeToStation / 60);
       const dest = destLabel ?? t.destinationName ?? t.towards ?? 'Tramlink';
       const sub  = t.destinationName || t.towards || 'Tramlink';
       return `<div class="dep-row">
