@@ -213,6 +213,11 @@
       line-height: 1;
     }
 
+    .countdown-num {
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
     .time-unit {
       font-size: 0.56rem;
       text-transform: uppercase;
@@ -457,8 +462,22 @@
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  function timeCell(mins, type) {
+  function timeCell(mins, type, isoTimestamp) {
     const cls = type === 'tram' ? 'tram' : type === 'tube' ? 'tube' : 'train';
+    if (isoTimestamp) {
+      const secsRemaining = Math.floor((new Date(isoTimestamp) - Date.now()) / 1000);
+      if (secsRemaining <= 0) {
+        return `<div class="time-cell" style="display:flex;align-items:center;justify-content:center">
+          <span class="due-pill ${cls}-due">Due</span>
+        </div>`;
+      }
+      const m = Math.floor(secsRemaining / 60);
+      const s = String(secsRemaining % 60).padStart(2, '0');
+      return `<div class="time-cell ${cls}-cell countdown-cell" data-arrival="${isoTimestamp}" data-type="${cls}">
+        <div class="time-num countdown-num">${m}:${s}</div>
+        <div class="time-unit">min</div>
+      </div>`;
+    }
     if (mins == null || mins <= 0) {
       return `<div class="time-cell" style="display:flex;align-items:center;justify-content:center">
         <span class="due-pill ${cls}-due">Due</span>
@@ -469,6 +488,26 @@
       <div class="time-unit">min</div>
     </div>`;
   }
+
+  function tickCountdowns() {
+    document.querySelectorAll('.countdown-cell').forEach(cell => {
+      const iso = cell.dataset.arrival;
+      const cls = cell.dataset.type;
+      const secsRemaining = Math.floor((new Date(iso) - Date.now()) / 1000);
+      const numEl = cell.querySelector('.countdown-num');
+      if (!numEl) return;
+      if (secsRemaining <= 0) {
+        cell.outerHTML = `<div class="time-cell" style="display:flex;align-items:center;justify-content:center">
+          <span class="due-pill ${cls}-due">Due</span>
+        </div>`;
+      } else {
+        const m = Math.floor(secsRemaining / 60);
+        const s = String(secsRemaining % 60).padStart(2, '0');
+        numEl.textContent = `${m}:${s}`;
+      }
+    });
+  }
+  setInterval(tickCountdowns, 1000);
 
   function minsFromTimeStr(str) {
     if (!str || str === 'Delayed' || str === 'On time' || str === 'Cancelled') return null;
@@ -551,11 +590,10 @@
 
   function renderTubeRows(arrivals) {
     return arrivals.map(t => {
-      const mins = Math.round(t.timeToStation / 60);
       const dest = cleanTubeName(t.destinationName || t.towards || 'Victoria line');
       const platform = (t.platformName || '').replace(/\s*platform\s*/i, 'Plat ').trim();
       return `<div class="dep-row">
-        ${timeCell(mins, 'tube')}
+        ${timeCell(null, 'tube', t.expectedArrival)}
         <div>
           <div class="dest">${dest}</div>
           <div class="sub-info">${platform || 'Victoria line'}</div>
@@ -624,11 +662,10 @@
 
   function renderTramRows(arrivals, destLabel) {
     return arrivals.map(t => {
-      const mins = Math.floor(t.timeToStation / 60);
       const dest = destLabel ?? t.destinationName ?? t.towards ?? 'Tramlink';
       const sub  = t.destinationName || t.towards || 'Tramlink';
       return `<div class="dep-row">
-        ${timeCell(mins, 'tram')}
+        ${timeCell(null, 'tram', t.expectedArrival)}
         <div>
           <div class="dest">${dest}</div>
           <div class="sub-info">${sub}</div>
